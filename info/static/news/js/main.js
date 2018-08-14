@@ -93,7 +93,7 @@ $(function(){
 		$(this).find('a')[0].click()
 	})
 
-    // TODO 登录表单提交
+    // 登录表单提交
     $(".login_form_con").submit(function (e) {
         e.preventDefault()
         var mobile = $(".login_form #mobile").val()
@@ -110,10 +110,34 @@ $(function(){
         }
 
         // 发起登录请求
+        var params = {
+            mobile:mobile,
+            password:password
+        }
+        $.ajax({
+            url:"/passport/login",
+            method: "post",
+            data: JSON.stringify(params),
+            contentType: "application/json",
+            headers:{
+                'X-CSRFToken':getCookie('csrf_token')
+            },
+            success: function (resp) {
+                if (resp.errno == "0") {
+                    // 刷新当前界面
+                    location.reload();
+                }else {
+                    $("#login-password-err").html(resp.errmsg)
+                    $("#login-password-err").show()
+                }
+            }
+
+        })
+
     })
 
 
-    // TODO 注册按钮点击
+    // 注册按钮点击
     $(".register_form_con").submit(function (e) {
         // 阻止默认提交操作
         e.preventDefault()
@@ -144,15 +168,46 @@ $(function(){
         }
 
         // 发起注册请求
+        var params = {
+            mobile:mobile,
+            sms_code:smscode,
+            password:password
+        }
+        $.ajax({
+            url:'/passport/register',
+            type:'post',
+            data:JSON.stringify(params),
+            contentType:'application/json',
+            headers:{
+                'X-CSRFToken':getCookie('csrf_token')
+            },
+            success:function (resp) {
+
+                if (resp.errno == "0") {
+                    // 刷新当前界面
+                    location.reload()
+                }
+                else {
+                    alert(resp.errmsg)
+                    $("#register-password-err").html(resp.errmsg)
+                    $("#register-password-err").show()
+                }
+            }
+        })
 
     })
 })
 
 var imageCodeId = ""
 
-// TODO 生成一个图片验证码的编号，并设置页面中图片验证码img标签的src属性
+// 生成一个图片验证码的编号，并设置页面中图片验证码img标签的src属性
 function generateImageCode() {
-
+    // 1. 生成一个编号
+     imageCodeId = generateUUID()
+    // 2. 拼接验证码地址
+    var imageCodeUrl = '/passport/image_code?image_code_id=' + imageCodeId
+    // 3. 设置页面中图片验证码img标签的src属性
+    $('.get_pic_code').attr('src', imageCodeUrl)
 }
 
 // 发送短信验证码
@@ -174,7 +229,79 @@ function sendSMSCode() {
         return;
     }
 
-    // TODO 发送短信验证码
+    // 发送短信验证码
+    // 构造请求参数
+    var params = {
+        "mobile":mobile,
+        "image_code":imageCode,
+        "image_code_id":imageCodeId
+    }
+    // 发送ajax请求
+    $.ajax({
+        url:'/passport/sms_code',
+        type:'post',
+        data:JSON.stringify(params),
+        contentType:'application/json', //发送到后端的数据类型
+        headers:{
+            'X-CSRFToken':getCookie('csrf_token')
+        },
+        success:function(resp){
+            if (resp.errno == '0'){
+                var num = 60;
+                // 实例化定时器对象
+                var t = setInterval(function(){
+                    if (num == 1){
+                        // 如果定时器倒计时到1了，清除定时器对象，然后把页面中重新添加点击事件
+                        clearInterval(t);
+                        $(".get_code").html('点击获取验证码')
+                        $(".get_code").attr("onclick", "sendSMSCode();");
+                    }else{
+                        num -= 1;
+                        $(".get_code").html(num + '秒')
+                    }
+
+                },1000)
+            }else{
+                alert(resp.errmsg)
+                $(".get_code").html('点击获取验证码')
+                $(".get_code").attr("onclick", "sendSMSCode();");
+            }
+        }
+
+    })
+}
+// 普通用户注销登陆
+function logout() {
+    $.ajax({
+        url: "/passport/logout",
+        type: "post",
+        contentType: "application/json",
+        headers: {
+            "X-CSRFToken": getCookie("csrf_token")
+        },
+        success: function (resp) {
+            // 刷新当前界面
+            location.reload()
+        }
+    })
+}
+
+// 管理员退出
+function adminlogout() {
+    $.ajax({
+        url:"/passport/logout",
+        type:"post",
+        contentType:"application/json",
+        headers:{
+            "X-CSRFToken": getCookie("csrf_token")
+        },
+        success:function (resp) {
+            // 跳转到首页
+            window.location.href = '/'
+        }
+
+
+    })
 }
 
 // 调用该函数模拟点击左侧按钮

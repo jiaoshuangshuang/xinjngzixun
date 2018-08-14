@@ -1,10 +1,11 @@
-from flask import Flask
+from flask import Flask, g, render_template
 from flask_sqlalchemy import SQLAlchemy
 # 导入配置对象
 from config import config, Config
 # 指定session信息的存储
 from flask_session import Session
 from flask_wtf.csrf import CSRFProtect
+from flask_wtf import csrf
 # 导入日志模块
 import logging
 # 日志的文件处理模块
@@ -41,5 +42,40 @@ def create_app(config_name):
     Session(app)
     # csrf实例化,实现跨站请求保护
     CSRFProtect(app)
+
+    # 通过请求钩子，把服务器生成token写入到客户端浏览器中
+    @app.after_request
+    def after_request(response):
+        csrf_token = csrf.generate_csrf()
+        response.set_cookie('csrf_token', csrf_token)
+        return response
+
+    # 注册蓝图
+    from info.modules.index import index_blu
+    # 新闻模块
+    app.register_blueprint(index_blu)
+    # 注册登录模块
+    from info.modules.passport import passport_blu
+    app.register_blueprint(passport_blu)
+    # 个人中心模块蓝
+    from info.modules.profile import profile_blu
+    app.register_blueprint(profile_blu)
+    # 管理员中心模块
+    from info.modules.admin import admin_blu
+    app.register_blueprint(admin_blu)
+
+    # 添加自定义过滤器
+    from info.utils.commons import do_index_class
+    app.add_template_filter(do_index_class, 'index_class')
+
+    # 在用户访问一些不存在网址的时候弹出404页面
+    from info.utils.commons import login_required
+    @app.errorhandler(404)
+    @login_required
+    def page_not_found(_):
+        user = g.user
+        data = {"user_info": user.to_dict() if user else None}
+        return render_template('news/404.html', data=data)
+
 
     return app
